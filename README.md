@@ -12,7 +12,7 @@ go run src/main.go --setup --path F:/Git/commit-msg --name commit-msg
 ```bash
 go run src/main.go --path F:/Git/commit-msg
 ```
-
+### this will run the commit-msg in the current directory
 ```bash
 go run src/main.go .
 ```
