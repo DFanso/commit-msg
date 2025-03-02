@@ -2,18 +2,49 @@ name: Build and Release
 
 on:
   push:
-    tags:
-      - 'v*'
     branches:
       - main
+    tags:
+      - 'v*'
   pull_request:
     branches:
       - main
 
 jobs:
+  auto-tag:
+    name: Auto Tag
+    runs-on: ubuntu-latest
+    # Only run on main branch pushes, not on tag pushes or PRs
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    outputs:
+      new_tag: ${{ steps.tag_version.outputs.new_tag }}
+      tag_created: ${{ steps.tag_version.outputs.tag_created }}
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Auto Tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: patch
+          create_annotated_tag: true
+          tag_prefix: v
+          
+      - name: Print Tag Info
+        run: |
+          echo "New tag: ${{ steps.tag_version.outputs.new_tag }}"
+          echo "Tag created: ${{ steps.tag_version.outputs.tag_created }}"
+
   build:
     name: Build Go Binary
     runs-on: ${{ matrix.os }}
+    needs: auto-tag
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -31,6 +62,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.auto-tag.outputs.tag_created == 'true' && needs.auto-tag.outputs.new_tag || github.ref }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -56,8 +89,9 @@ jobs:
           path: ${{ matrix.artifact_name }}
 
   release:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [auto-tag, build]
+    # Run if a tag was created or if this was triggered by a tag push
+    if: (needs.auto-tag.outputs.tag_created == 'true') || (github.event_name == 'push' && contains(github.ref, 'refs/tags/'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -68,12 +102,21 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
 
+      - name: Debug info
+        run: |
+          echo "GitHub ref: ${{ github.ref }}"
+          echo "Event name: ${{ github.event_name }}"
+          echo "Auto tag created: ${{ needs.auto-tag.outputs.tag_created }}"
+          echo "New tag: ${{ needs.auto-tag.outputs.new_tag }}"
+          ls -la
+
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          tag_name: ${{ needs.auto-tag.outputs.tag_created == 'true' && needs.auto-tag.outputs.new_tag || github.ref_name }}
           files: |
             commit-linux-amd64/commit
             commit-windows-amd64.exe/commit.exe
@@ -84,12 +127,20 @@ jobs:
 
   publish:
     name: Publish to GitHub Packages
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [auto-tag, build]
+    # Run if a tag was created or if this was triggered by a tag push
+    if: (needs.auto-tag.outputs.tag_created == 'true') || (github.event_name == 'push' && contains(github.ref, 'refs/tags/'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Debug info
+        run: |
+          echo "GitHub ref: ${{ github.ref }}"
+          echo "Event name: ${{ github.event_name }}"
+          echo "Auto tag created: ${{ needs.auto-tag.outputs.tag_created }}"
+          echo "New tag: ${{ needs.auto-tag.outputs.new_tag }}"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -114,29 +165,42 @@ jobs:
           name: commit-macos-amd64
           path: ./dist/darwin-amd64
 
+      - name: List artifacts
+        run: |
+          echo "Linux artifacts:"
+          ls -la ./dist/linux-amd64/ || echo "Directory not found"
+          echo "Windows artifacts:"
+          ls -la ./dist/windows-amd64/ || echo "Directory not found"
+          echo "macOS artifacts:"
+          ls -la ./dist/darwin-amd64/ || echo "Directory not found"
+
       - name: Make binaries executable
         run: |
-          chmod +x ./dist/linux-amd64/commit
-          chmod +x ./dist/darwin-amd64/commit
+          chmod +x ./dist/linux-amd64/commit || echo "Linux binary not found"
+          chmod +x ./dist/darwin-amd64/commit || echo "macOS binary not found"
 
       - name: Prepare release assets
         run: |
           mkdir -p ./release
           
           # Linux package
-          tar -C ./dist/linux-amd64 -czf ./release/commit-linux-amd64.tar.gz commit
+          tar -C ./dist/linux-amd64 -czf ./release/commit-linux-amd64.tar.gz commit || echo "Failed to create Linux package"
           
           # Windows package
-          zip -j ./release/commit-windows-amd64.zip ./dist/windows-amd64/commit.exe
+          zip -j ./release/commit-windows-amd64.zip ./dist/windows-amd64/commit.exe || echo "Failed to create Windows package"
           
           # macOS package
-          tar -C ./dist/darwin-amd64 -czf ./release/commit-macos-amd64.tar.gz commit
+          tar -C ./dist/darwin-amd64 -czf ./release/commit-macos-amd64.tar.gz commit || echo "Failed to create macOS package"
+          
+          echo "Release packages:"
+          ls -la ./release/
 
       - name: Upload release packages to GitHub Releases
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          tag_name: ${{ needs.auto-tag.outputs.tag_created == 'true' && needs.auto-tag.outputs.new_tag || github.ref_name }}
           files: |
             ./release/commit-linux-amd64.tar.gz
             ./release/commit-windows-amd64.zip
