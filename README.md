@@ -1,11 +1,13 @@
 # commit-msg
  
+
+ ## Setup
  ```bash
-./commit-helper --setup --path="/F:/Git/bible-marker --api-key="your-grok-api-key"
+go run src/main.go --setup --path="/F:/Git/bible-marker --name="bible-marker" --api-key="your-grok-api-key"
 ```
 
 ## Usage
 
 ```bash
-./commit-helper
+go run src/main.go
 ```

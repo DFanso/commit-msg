@@ -2,17 +2,19 @@ package grok
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/dfanso/commit-msg/src/types"
 )
 
 func GenerateCommitMessage(config *types.Config, changes string) (string, error) {
-	// Prepare request to Grok API
+	// Prepare request to X.AI (Grok) API
 	prompt := fmt.Sprintf(`
 I need a concise git commit message based on the following changes from my Git repository.
 Please generate a commit message that:
@@ -34,6 +36,9 @@ Here are the changes:
 				Content: prompt,
 			},
 		},
+		Model:       "grok-2-latest", // Add the model parameter
+		Stream:      false,
+		Temperature: 0,
 	}
 
 	requestBody, err := json.Marshal(request)
@@ -47,13 +52,34 @@ Here are the changes:
 		return "", err
 	}
 
+	// Get API key from config or environment variable
+	apiKey := config.APIKey
+	if apiKey == "" {
+		apiKey = os.Getenv("GROK_API_KEY")
+		if apiKey == "" {
+			return "", fmt.Errorf("GROK_API_KEY not found in config or environment variables")
+		}
+	}
+
 	// Set headers
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", config.APIKey))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
 
-	// Send request
+	// Configure HTTP client with improved TLS settings
+	transport := &http.Transport{
+		TLSHandshakeTimeout: 10 * time.Second,
+		MaxIdleConns:        10,
+		IdleConnTimeout:     30 * time.Second,
+		DisableCompression:  true,
+		// Add TLS config to handle server name mismatch
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: false, // Keep this false for security
+		},
+	}
+
 	client := &http.Client{
-		Timeout: 30 * time.Second,
+		Timeout:   30 * time.Second,
+		Transport: transport,
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -71,6 +97,11 @@ Here are the changes:
 	var grokResponse types.GrokResponse
 	if err := json.NewDecoder(resp.Body).Decode(&grokResponse); err != nil {
 		return "", err
+	}
+
+	// Check if the response follows the expected structure
+	if grokResponse.Message.Content == "" && grokResponse.Choices != nil && len(grokResponse.Choices) > 0 {
+		return grokResponse.Choices[0].Message.Content, nil
 	}
 
 	return grokResponse.Message.Content, nil

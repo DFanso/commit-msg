@@ -13,7 +13,17 @@ import (
 	"github.com/dfanso/commit-msg/src/config"
 	"github.com/dfanso/commit-msg/src/grok"
 	"github.com/dfanso/commit-msg/src/types"
+	"github.com/joho/godotenv"
 )
+
+// Normalize path to handle both forward and backslashes
+func normalizePath(path string) string {
+	// Replace backslashes with forward slashes
+	normalized := strings.ReplaceAll(path, "\\", "/")
+	// Remove any trailing slash
+	normalized = strings.TrimSuffix(normalized, "/")
+	return normalized
+}
 
 // Main function
 func main() {
@@ -21,48 +31,112 @@ func main() {
 	configFile := flag.String("config", "commit-helper.json", "Path to config file")
 	setupMode := flag.Bool("setup", false, "Setup configuration")
 	path := flag.String("path", "", "Path to monitor (for setup)")
-	apiKey := flag.String("api-key", "", "Grok API key (for setup)")
-	apiEndpoint := flag.String("api-endpoint", "https://api.grok.ai/v1/chat/completions", "Grok API endpoint (for setup)")
+	repoName := flag.String("name", "", "Repository name (for setup)")
+	apiEndpoint := flag.String("api-endpoint", "https://api.x.ai/v1/chat/completions", "X.AI API endpoint (for setup)")
 	flag.Parse()
+
+	// Load environment variables from .env file
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Warning: Error loading .env file: %v", err)
+	}
+
+	// Get API key from environment variables
+	apiKey := os.Getenv("GROK_API_KEY")
+	if apiKey == "" {
+		log.Fatalf("GROK_API_KEY not found in environment variables")
+	}
+
+	// If in setup mode, create a new configuration
+	if *setupMode {
+		if *path == "" || *repoName == "" {
+			log.Fatalf("Both --path and --name are required in setup mode")
+		}
+
+		// Normalize the path
+		normalizedPath := normalizePath(*path)
+
+		// Create new config with default endpoint
+		newConfig := &types.Config{
+			GrokAPI: *apiEndpoint,
+			APIKey:  apiKey, // Store API key in config
+			Repos:   make(map[string]types.RepoConfig),
+		}
+
+		newConfig.Repos[*repoName] = types.RepoConfig{
+			Path:    normalizedPath,
+			LastRun: time.Now().Format(time.RFC3339),
+		}
+
+		if err := config.SaveConfig(*configFile, newConfig); err != nil {
+			log.Fatalf("Failed to save configuration: %v", err)
+		}
+
+		fmt.Printf("Repository '%s' configured successfully.\n", *repoName)
+		return
+	}
 
 	// Initialize or load configuration
 	cfg, err := config.LoadConfig(*configFile)
 	if err != nil {
-		if *setupMode {
-			newConfig := &types.Config{
-				Path:    *path,
-				GrokAPI: *apiEndpoint,
-				APIKey:  *apiKey,
-				LastRun: time.Now().Format(time.RFC3339),
-			}
-			if err := config.SaveConfig(*configFile, newConfig); err != nil {
-				log.Fatalf("Failed to save configuration: %v", err)
-			}
-			fmt.Println("Configuration saved successfully.")
-			return
-		} else {
-			log.Fatalf("Failed to load configuration: %v", err)
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// Make sure the API key is in the config
+	if cfg.APIKey == "" {
+		cfg.APIKey = apiKey
+		if err := config.SaveConfig(*configFile, cfg); err != nil {
+			log.Printf("Warning: Failed to update API key in config: %v", err)
 		}
 	}
 
+	// If no path provided, list available repositories
+	if *path == "" {
+		fmt.Println("Available repositories:")
+		if len(cfg.Repos) == 0 {
+			fmt.Println("No repositories configured. Use --setup to add a repository.")
+			return
+		}
+		for name, repo := range cfg.Repos {
+			fmt.Printf("- %s: %s (Last run: %s)\n", name, repo.Path, repo.LastRun)
+		}
+		return
+	}
+
 	// Validate configuration
-	if cfg.Path == "" {
-		log.Fatalf("Path not configured. Run with --setup and provide a path.")
-	}
 	if cfg.GrokAPI == "" {
-		log.Fatalf("Grok API endpoint not configured. Run with --setup and provide an API endpoint.")
+		cfg.GrokAPI = *apiEndpoint // Use default endpoint if not set
+		if err := config.SaveConfig(*configFile, cfg); err != nil {
+			log.Printf("Warning: Failed to update API endpoint in config: %v", err)
+		}
 	}
-	if cfg.APIKey == "" {
-		log.Fatalf("API key not configured. Run with --setup and provide an API key.")
+
+	// Normalize the input path
+	repoPath := normalizePath(*path)
+	var selectedRepo string
+	var repoConfig types.RepoConfig
+
+	// Find the repository configuration by path
+	for name, repo := range cfg.Repos {
+		// Normalize the stored path for comparison
+		storedPath := normalizePath(repo.Path)
+		if storedPath == repoPath {
+			selectedRepo = name
+			repoConfig = repo
+			break
+		}
+	}
+
+	if selectedRepo == "" {
+		log.Fatalf("No repository configured for path: %s", repoPath)
 	}
 
 	// Ensure the path is a Git repository
-	if !isGitRepository(cfg.Path) {
-		log.Fatalf("The specified path is not a Git repository: %s", cfg.Path)
+	if !isGitRepository(repoConfig.Path) {
+		log.Fatalf("The specified path is not a Git repository: %s", repoConfig.Path)
 	}
 
 	// Get the changes
-	changes, err := getGitChanges(cfg)
+	changes, err := getGitChanges(&repoConfig)
 	if err != nil {
 		log.Fatalf("Failed to get Git changes: %v", err)
 	}
@@ -72,7 +146,7 @@ func main() {
 		return
 	}
 
-	// Generate commit message using Grok API
+	// Generate commit message using X.AI API
 	commitMsg, err := grok.GenerateCommitMessage(cfg, changes)
 	if err != nil {
 		log.Fatalf("Failed to generate commit message: %v", err)
@@ -83,7 +157,8 @@ func main() {
 	fmt.Println(commitMsg)
 
 	// Update the last run time
-	cfg.LastRun = time.Now().Format(time.RFC3339)
+	repoConfig.LastRun = time.Now().Format(time.RFC3339)
+	cfg.Repos[selectedRepo] = repoConfig
 	if err := config.SaveConfig(*configFile, cfg); err != nil {
 		log.Printf("Warning: Failed to update last run time: %v", err)
 	}
@@ -100,7 +175,7 @@ func isGitRepository(path string) bool {
 }
 
 // Get changes using Git
-func getGitChanges(config *types.Config) (string, error) {
+func getGitChanges(config *types.RepoConfig) (string, error) {
 	var changes strings.Builder
 
 	// 1. Check for unstaged changes

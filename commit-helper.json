@@ -1,6 +1,10 @@
 {
-  "path": "F:/Git/bible-marker",
-  "grok_api": "https://api.grok.ai/v1/chat/completions",
-  "api_key": "your-grok-api-key",
-  "last_run": "2025-03-02T13:46:14+05:30"
+  "grok_api": "https://api.x.ai/v1/chat/completions",
+  "repos": {
+    "commit-msg": {
+      "path": "F:/Git/commit-msg",
+      "last_run": "2025-03-02T14:24:15+05:30"
+    }
+  },
+  "api_key": "xai-aHqouEe5EoEf4u8VwlSd024yDJUhjQjwvWzQ1jcJ91bBp8YTgbmuODYS6ED6PgcKeSzaUNm64doNlTrq"
 }
