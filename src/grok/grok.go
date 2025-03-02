@@ -23,7 +23,8 @@ Please generate a commit message that:
 3. Focuses on the "what" and "why" of the changes
 4. Is no longer than 50-72 characters for the first line
 5. Can include a more detailed description after a blank line if needed
-6. Oonly include commit msg dont say anyhtiing else
+6. only include commit msg dont say anyhtiing else
+7. use '-' for sentences
 
 Here are the changes:
 
