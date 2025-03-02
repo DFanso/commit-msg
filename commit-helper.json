@@ -1,0 +1,6 @@
+{
+  "path": "F:/Git/bible-marker",
+  "grok_api": "https://api.grok.ai/v1/chat/completions",
+  "api_key": "your-grok-api-key",
+  "last_run": "2025-03-02T13:46:14+05:30"
+}
