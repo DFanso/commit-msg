@@ -75,7 +75,6 @@ func main() {
 		// Create new config with default endpoint
 		newConfig := &types.Config{
 			GrokAPI: *apiEndpoint,
-			APIKey:  apiKey, // Store API key in config
 			Repos:   make(map[string]types.RepoConfig),
 		}
 
@@ -98,16 +97,7 @@ func main() {
 		// If config doesn't exist yet, create a new one
 		cfg = &types.Config{
 			GrokAPI: *apiEndpoint,
-			APIKey:  apiKey,
 			Repos:   make(map[string]types.RepoConfig),
-		}
-	}
-
-	// Make sure the API key is in the config
-	if cfg.APIKey == "" {
-		cfg.APIKey = apiKey
-		if err := config.SaveConfig(*configFile, cfg); err != nil {
-			log.Printf("Warning: Failed to update API key in config: %v", err)
 		}
 	}
 
@@ -198,8 +188,8 @@ func main() {
 		return
 	}
 
-	// Generate commit message using X.AI API
-	commitMsg, err := grok.GenerateCommitMessage(cfg, changes)
+	// Pass API key to GenerateCommitMessage
+	commitMsg, err := grok.GenerateCommitMessage(cfg, changes, apiKey)
 	if err != nil {
 		log.Fatalf("Failed to generate commit message: %v", err)
 	}

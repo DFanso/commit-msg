@@ -4,7 +4,6 @@ package types
 type Config struct {
 	GrokAPI string                `json:"grok_api"`
 	Repos   map[string]RepoConfig `json:"repos"`
-	APIKey  string                `json:"api_key"`
 }
 
 // Repository configuration

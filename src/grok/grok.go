@@ -7,24 +7,21 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/dfanso/commit-msg/src/types"
 )
 
-func GenerateCommitMessage(config *types.Config, changes string) (string, error) {
+func GenerateCommitMessage(config *types.Config, changes string, apiKey string) (string, error) {
 	// Prepare request to X.AI (Grok) API
 	prompt := fmt.Sprintf(`
 I need a concise git commit message based on the following changes from my Git repository.
 Please generate a commit message that:
-1. Starts with a verb in the present tense (e.g., "Add: ", "Fix: ", "Update: ", "Remove: ","Feat" etc.)
+1. Starts with a verb in the present tense (e.g., "Add", "Fix", "Update")
 2. Is clear and descriptive
 3. Focuses on the "what" and "why" of the changes
 4. Is no longer than 50-72 characters for the first line
 5. Can include a more detailed description after a blank line if needed
-6. only include commit msg dont say anyhtiing else
-7. use '-' for sentences
 
 Here are the changes:
 
@@ -38,7 +35,7 @@ Here are the changes:
 				Content: prompt,
 			},
 		},
-		Model:       "grok-2-latest", // Add the model parameter
+		Model:       "grok-2-latest",
 		Stream:      false,
 		Temperature: 0,
 	}
@@ -52,15 +49,6 @@ Here are the changes:
 	req, err := http.NewRequest("POST", config.GrokAPI, bytes.NewBuffer(requestBody))
 	if err != nil {
 		return "", err
-	}
-
-	// Get API key from config or environment variable
-	apiKey := config.APIKey
-	if apiKey == "" {
-		apiKey = os.Getenv("GROK_API_KEY")
-		if apiKey == "" {
-			return "", fmt.Errorf("GROK_API_KEY not found in config or environment variables")
-		}
 	}
 
 	// Set headers

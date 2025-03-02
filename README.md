@@ -1,5 +1,6 @@
 # commit-msg
- 
+## Add GROK_API_KEY to system variables
+
 
  ## Setup
  ```bash
