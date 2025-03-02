@@ -195,7 +195,6 @@ func main() {
 	}
 
 	// Display the commit message
-	fmt.Println("Suggested commit message:")
 	fmt.Println(commitMsg)
 
 	// Update the last run time
