@@ -46,6 +46,23 @@ func main() {
 		log.Fatalf("GROK_API_KEY not found in environment variables")
 	}
 
+	// Check for "." argument which means use current directory
+	if len(flag.Args()) > 0 && flag.Args()[0] == "." {
+		// Get current directory
+		currentDir, err := os.Getwd()
+		if err != nil {
+			log.Fatalf("Failed to get current directory: %v", err)
+		}
+
+		// Override path with current directory
+		*path = currentDir
+
+		// Check if current directory is a git repository
+		if !isGitRepository(currentDir) {
+			log.Fatalf("Current directory is not a Git repository: %s", currentDir)
+		}
+	}
+
 	// If in setup mode, create a new configuration
 	if *setupMode {
 		if *path == "" || *repoName == "" {
@@ -78,7 +95,12 @@ func main() {
 	// Initialize or load configuration
 	cfg, err := config.LoadConfig(*configFile)
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		// If config doesn't exist yet, create a new one
+		cfg = &types.Config{
+			GrokAPI: *apiEndpoint,
+			APIKey:  apiKey,
+			Repos:   make(map[string]types.RepoConfig),
+		}
 	}
 
 	// Make sure the API key is in the config
@@ -126,8 +148,38 @@ func main() {
 		}
 	}
 
+	// Auto-setup if repository not found in config
 	if selectedRepo == "" {
-		log.Fatalf("No repository configured for path: %s", repoPath)
+		// Generate a repository name from the path
+		dirName := filepath.Base(repoPath)
+		if dirName == "" || dirName == "." || dirName == "/" || dirName == "\\" {
+			dirName = "auto-repo"
+		}
+
+		// Make sure the name is unique
+		baseName := dirName
+		counter := 1
+		for {
+			if _, exists := cfg.Repos[dirName]; !exists {
+				break
+			}
+			dirName = fmt.Sprintf("%s-%d", baseName, counter)
+			counter++
+		}
+
+		// Add the repository to the configuration
+		selectedRepo = dirName
+		repoConfig = types.RepoConfig{
+			Path:    repoPath,
+			LastRun: time.Now().Format(time.RFC3339),
+		}
+		cfg.Repos[selectedRepo] = repoConfig
+
+		if err := config.SaveConfig(*configFile, cfg); err != nil {
+			log.Printf("Warning: Failed to save auto-configured repository: %v", err)
+		} else {
+			fmt.Printf("Repository '%s' auto-configured successfully.\n", selectedRepo)
+		}
 	}
 
 	// Ensure the path is a Git repository
