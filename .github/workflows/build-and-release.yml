@@ -68,7 +68,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'  # Use the appropriate Go version for your project
+          go-version: '1.23'  # Use the appropriate Go version for your project
 
       - name: Get dependencies
         run: go mod download
@@ -88,9 +88,68 @@ jobs:
           name: ${{ matrix.asset_name }}
           path: ${{ matrix.artifact_name }}
 
+  package:
+    name: Package Binaries
+    needs: [auto-tag, build]
+    runs-on: ubuntu-latest
+    # Always run after build
+    if: always() && needs.build.result == 'success'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Linux Binary
+        uses: actions/download-artifact@v4
+        with:
+          name: commit-linux-amd64
+          path: ./binaries/linux
+
+      - name: Download Windows Binary
+        uses: actions/download-artifact@v4
+        with:
+          name: commit-windows-amd64.exe
+          path: ./binaries/windows
+
+      - name: Download macOS Binary
+        uses: actions/download-artifact@v4
+        with:
+          name: commit-macos-amd64
+          path: ./binaries/macos
+
+      - name: Show downloaded files
+        run: |
+          find ./binaries -type f
+          
+      - name: Make binaries executable
+        run: |
+          chmod +x ./binaries/linux/commit
+          chmod +x ./binaries/macos/commit
+
+      - name: Create packages
+        run: |
+          mkdir -p ./packages
+          
+          # Package Linux binary
+          tar -C ./binaries/linux -czf ./packages/commit-linux-amd64.tar.gz commit
+          
+          # Package Windows binary
+          zip -j ./packages/commit-windows-amd64.zip ./binaries/windows/commit.exe
+          
+          # Package macOS binary
+          tar -C ./binaries/macos -czf ./packages/commit-macos-amd64.tar.gz commit
+          
+          # List created packages
+          ls -la ./packages/
+
+      - name: Upload packages as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-packages
+          path: ./packages/*
+
   release:
     name: Create Release
-    needs: [auto-tag, build]
+    needs: [auto-tag, build, package]
     # Run if a tag was created by auto-tag or this is a tag push
     if: (needs.auto-tag.outputs.new_tag != '') || (github.event_name == 'push' && contains(github.ref, 'refs/tags/'))
     runs-on: ubuntu-latest
@@ -100,19 +159,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download all artifacts
+      - name: Download packages
         uses: actions/download-artifact@v4
+        with:
+          name: release-packages
+          path: ./packages
 
-      - name: Debug info
+      - name: List package files
         run: |
-          echo "GitHub ref: ${{ github.ref }}"
-          echo "Event name: ${{ github.event_name }}"
-          echo "New tag: ${{ needs.auto-tag.outputs.new_tag }}"
-          echo "Directory contents:"
-          find . -type f | sort
+          ls -la ./packages/
 
-      - name: Create Release
-        id: create_release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -120,76 +177,9 @@ jobs:
           tag_name: ${{ needs.auto-tag.outputs.new_tag != '' && needs.auto-tag.outputs.new_tag || github.ref_name }}
           name: Release ${{ needs.auto-tag.outputs.new_tag != '' && needs.auto-tag.outputs.new_tag || github.ref_name }}
           files: |
-            ./commit-linux-amd64/commit
-            ./commit-windows-amd64.exe/commit.exe
-            ./commit-macos-amd64/commit
+            ./packages/commit-linux-amd64.tar.gz
+            ./packages/commit-windows-amd64.zip
+            ./packages/commit-macos-amd64.tar.gz
           draft: false
           prerelease: false
           generate_release_notes: true
-
-  publish:
-    name: Publish to GitHub Packages
-    needs: [auto-tag, build]
-    # Run if a tag was created by auto-tag or this is a tag push
-    if: (needs.auto-tag.outputs.new_tag != '') || (github.event_name == 'push' && contains(github.ref, 'refs/tags/'))
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download Linux artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: commit-linux-amd64
-          path: ./dist/linux-amd64
-
-      - name: Download Windows artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: commit-windows-amd64.exe
-          path: ./dist/windows-amd64
-
-      - name: Download macOS artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: commit-macos-amd64
-          path: ./dist/darwin-amd64
-
-      - name: Debug info
-        run: |
-          echo "Directory contents:"
-          find ./dist -type f | sort
-
-      - name: Make binaries executable
-        run: |
-          chmod +x ./dist/linux-amd64/commit || echo "Linux binary not found"
-          chmod +x ./dist/darwin-amd64/commit || echo "macOS binary not found"
-
-      - name: Prepare release assets
-        run: |
-          mkdir -p ./release
-          
-          # Linux package
-          tar -C ./dist/linux-amd64 -czf ./release/commit-linux-amd64.tar.gz commit || echo "Failed to create Linux package"
-          
-          # Windows package
-          zip -j ./release/commit-windows-amd64.zip ./dist/windows-amd64/commit.exe || echo "Failed to create Windows package"
-          
-          # macOS package
-          tar -C ./dist/darwin-amd64 -czf ./release/commit-macos-amd64.tar.gz commit || echo "Failed to create macOS package"
-          
-          echo "Release packages:"
-          ls -la ./release/
-
-      - name: Upload release packages to GitHub Releases
-        uses: softprops/action-gh-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ needs.auto-tag.outputs.new_tag != '' && needs.auto-tag.outputs.new_tag || github.ref_name }}
-          files: |
-            ./release/commit-linux-amd64.tar.gz
-            ./release/commit-windows-amd64.zip
-            ./release/commit-macos-amd64.tar.gz
