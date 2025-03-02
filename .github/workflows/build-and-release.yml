@@ -18,7 +18,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     outputs:
       new_tag: ${{ steps.tag_version.outputs.new_tag }}
-      tag_created: ${{ steps.tag_version.outputs.tag_created }}
+      tag_created: ${{ steps.tag_version.outputs.new_tag != '' }}
     permissions:
       contents: write
     steps:
@@ -39,12 +39,14 @@ jobs:
       - name: Print Tag Info
         run: |
           echo "New tag: ${{ steps.tag_version.outputs.new_tag }}"
-          echo "Tag created: ${{ steps.tag_version.outputs.tag_created }}"
+          echo "Tag created: ${{ steps.tag_version.outputs.new_tag != '' }}"
 
   build:
     name: Build Go Binary
     runs-on: ${{ matrix.os }}
     needs: auto-tag
+    # Always run build, even if auto-tag was skipped (e.g., for tag pushes)
+    if: always() && (needs.auto-tag.result == 'success' || needs.auto-tag.result == 'skipped')
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -62,8 +64,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.auto-tag.outputs.tag_created == 'true' && needs.auto-tag.outputs.new_tag || github.ref }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -89,9 +89,10 @@ jobs:
           path: ${{ matrix.artifact_name }}
 
   release:
+    name: Create Release
     needs: [auto-tag, build]
-    # Run if a tag was created or if this was triggered by a tag push
-    if: (needs.auto-tag.outputs.tag_created == 'true') || (github.event_name == 'push' && contains(github.ref, 'refs/tags/'))
+    # Run if a tag was created by auto-tag or this is a tag push
+    if: (needs.auto-tag.outputs.new_tag != '') || (github.event_name == 'push' && contains(github.ref, 'refs/tags/'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -106,9 +107,9 @@ jobs:
         run: |
           echo "GitHub ref: ${{ github.ref }}"
           echo "Event name: ${{ github.event_name }}"
-          echo "Auto tag created: ${{ needs.auto-tag.outputs.tag_created }}"
           echo "New tag: ${{ needs.auto-tag.outputs.new_tag }}"
-          ls -la
+          echo "Directory contents:"
+          find . -type f | sort
 
       - name: Create Release
         id: create_release
@@ -116,11 +117,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ needs.auto-tag.outputs.tag_created == 'true' && needs.auto-tag.outputs.new_tag || github.ref_name }}
+          tag_name: ${{ needs.auto-tag.outputs.new_tag != '' && needs.auto-tag.outputs.new_tag || github.ref_name }}
+          name: Release ${{ needs.auto-tag.outputs.new_tag != '' && needs.auto-tag.outputs.new_tag || github.ref_name }}
           files: |
-            commit-linux-amd64/commit
-            commit-windows-amd64.exe/commit.exe
-            commit-macos-amd64/commit
+            ./commit-linux-amd64/commit
+            ./commit-windows-amd64.exe/commit.exe
+            ./commit-macos-amd64/commit
           draft: false
           prerelease: false
           generate_release_notes: true
@@ -128,24 +130,14 @@ jobs:
   publish:
     name: Publish to GitHub Packages
     needs: [auto-tag, build]
-    # Run if a tag was created or if this was triggered by a tag push
-    if: (needs.auto-tag.outputs.tag_created == 'true') || (github.event_name == 'push' && contains(github.ref, 'refs/tags/'))
+    # Run if a tag was created by auto-tag or this is a tag push
+    if: (needs.auto-tag.outputs.new_tag != '') || (github.event_name == 'push' && contains(github.ref, 'refs/tags/'))
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Debug info
-        run: |
-          echo "GitHub ref: ${{ github.ref }}"
-          echo "Event name: ${{ github.event_name }}"
-          echo "Auto tag created: ${{ needs.auto-tag.outputs.tag_created }}"
-          echo "New tag: ${{ needs.auto-tag.outputs.new_tag }}"
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
 
       - name: Download Linux artifact
         uses: actions/download-artifact@v4
@@ -165,14 +157,10 @@ jobs:
           name: commit-macos-amd64
           path: ./dist/darwin-amd64
 
-      - name: List artifacts
+      - name: Debug info
         run: |
-          echo "Linux artifacts:"
-          ls -la ./dist/linux-amd64/ || echo "Directory not found"
-          echo "Windows artifacts:"
-          ls -la ./dist/windows-amd64/ || echo "Directory not found"
-          echo "macOS artifacts:"
-          ls -la ./dist/darwin-amd64/ || echo "Directory not found"
+          echo "Directory contents:"
+          find ./dist -type f | sort
 
       - name: Make binaries executable
         run: |
@@ -200,7 +188,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ needs.auto-tag.outputs.tag_created == 'true' && needs.auto-tag.outputs.new_tag || github.ref_name }}
+          tag_name: ${{ needs.auto-tag.outputs.new_tag != '' && needs.auto-tag.outputs.new_tag || github.ref_name }}
           files: |
             ./release/commit-linux-amd64.tar.gz
             ./release/commit-windows-amd64.zip
