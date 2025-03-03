@@ -1,6 +1,10 @@
 
 # commit-msg
 
+## Screenshot
+
+Here’s an image of the application in action:
+
 ![Commit-msg Screenshot](image.png)
 
 ## Add `GROK_API_KEY` to System Variables
@@ -45,9 +49,7 @@ Below is a sample execution of `commit-msg`:
 
 ---
 
-## Screenshot
 
-Here’s an image of the application in action:
 
 
 
