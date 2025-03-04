@@ -1,6 +1,8 @@
 
 # commit-msg
 
+`commit-msg` is a command-line tool that generates commit messages using LLM. It is designed to help developers create clear and concise commit messages for their Git repositories. - btw i accept this from autoocomplete
+
 ## Screenshot
 
 Below is a sample execution of `commit-msg`:
