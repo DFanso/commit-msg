@@ -22,11 +22,16 @@ Before running the application, ensure you have set the system environment varia
 
 ## Setup
 
+
+### Download the latest release and set the in the path variables then you can use `commit .` in any git repo
+
 To set up `commit-msg`, run the following command:
 
 ```bash
 go run src/main.go --setup --path F:/Git/commit-msg --name commit-msg
 ```
+
+
 
 ---
 
