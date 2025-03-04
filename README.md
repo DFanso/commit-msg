@@ -1,11 +1,19 @@
 
 # commit-msg
 
+## Screenshot
+
+Below is a sample execution of `commit-msg`:
+
 ![Commit-msg Screenshot](image.png)
 
-## Add `GROK_API_KEY` to System Variables
+## You can Use Gemini or Grok as the LLM to Generate Commit Messages
 
-Before running the application, ensure you have set the `GROK_API_KEY` as a system environment variable.
+### Add `COMMIT_LLM` value are `gemini` or `grok`
+### Add `GROK_API_KEY` to System Variables (if use grok)
+### Add `GEMINI_API_KEY` to System Variables (if use gemini)
+
+Before running the application, ensure you have set the system environment variables.
 
 ---
 
@@ -32,22 +40,6 @@ This will execute `commit-msg` in the current directory:
 ```bash
 go run src/main.go .
 ```
-
----
-
-## Sample Output
-
-Below is a sample execution of `commit-msg`:
-
-```bash
-# Example output here (replace with actual example)
-```
-
----
-
-## Screenshot
-
-Here’s an image of the application in action:
 
 
 

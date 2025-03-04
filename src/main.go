@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/dfanso/commit-msg/src/config"
+	"github.com/dfanso/commit-msg/src/gemini"
 	"github.com/dfanso/commit-msg/src/grok"
 	"github.com/dfanso/commit-msg/src/types"
-	"github.com/joho/godotenv"
 )
 
 // Normalize path to handle both forward and backslashes
@@ -36,14 +36,24 @@ func main() {
 	flag.Parse()
 
 	// Load environment variables from .env file
-	if err := godotenv.Load(); err != nil {
-		log.Printf("Warning: Error loading .env file: %v", err)
-	}
+	// if err := godotenv.Load(); err != nil {
+	// 	log.Printf("Warning: Error loading .env file: %v", err)
+	// }
 
 	// Get API key from environment variables
-	apiKey := os.Getenv("GROK_API_KEY")
-	if apiKey == "" {
-		log.Fatalf("GROK_API_KEY not found in environment variables")
+	var apiKey string
+	if os.Getenv("COMMIT_LLM") == "google" {
+		apiKey = os.Getenv("GOOGLE_API_KEY")
+		if apiKey == "" {
+			log.Fatalf("GOOGLE_API_KEY is not set")
+		}
+	} else if os.Getenv("COMMIT_LLM") == "grok" {
+		apiKey = os.Getenv("GROK_API_KEY")
+		if apiKey == "" {
+			log.Fatalf("GROK_API_KEY is not set")
+		}
+	} else {
+		log.Fatalf("Invalid COMMIT_LLM value: %s", os.Getenv("COMMIT_LLM"))
 	}
 
 	// Check for "." argument which means use current directory
@@ -189,7 +199,12 @@ func main() {
 	}
 
 	// Pass API key to GenerateCommitMessage
-	commitMsg, err := grok.GenerateCommitMessage(cfg, changes, apiKey)
+	var commitMsg string
+	if os.Getenv("COMMIT_LLM") == "google" {
+		commitMsg, err = gemini.GenerateCommitMessage(cfg, changes, apiKey)
+	} else {
+		commitMsg, err = grok.GenerateCommitMessage(cfg, changes, apiKey)
+	}
 	if err != nil {
 		log.Fatalf("Failed to generate commit message: %v", err)
 	}
