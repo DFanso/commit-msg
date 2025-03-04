@@ -1,7 +1,6 @@
-
 # commit-msg
 
-`commit-msg` is a command-line tool that generates commit messages using LLM. It is designed to help developers create clear and concise commit messages for their Git repositories. - btw i accept this from autoocomplete
+`commit-msg` is a command-line tool that generates commit messages using LLM. It is designed to help developers create clear and concise commit messages for their Git repositories. - btw i accept this from auto-complete
 
 ## Screenshot
 
@@ -18,8 +17,6 @@ Before running the application, ensure you have set the system environment varia
 ### Add `GROK_API_KEY` to System Variables (if use grok)
 
 ### Add `GEMINI_API_KEY` to System Variables (if use gemini)
-
-
 
 ---
 
@@ -46,6 +43,12 @@ This will execute `commit-msg` in the current directory:
 ```bash
 go run src/main.go .
 ```
+
+---
+
+## Download
+
+To download the latest release of `commit-msg`, visit the [GitHub Releases](https://github.com/dfanso/commit-msg/releases) page and follow the installation instructions for your platform.
 
 
 
