@@ -7,13 +7,17 @@ Below is a sample execution of `commit-msg`:
 
 ![Commit-msg Screenshot](image.png)
 
+Before running the application, ensure you have set the system environment variables.
+
 ## You can Use Gemini or Grok as the LLM to Generate Commit Messages
 
 ### Add `COMMIT_LLM` value are `gemini` or `grok`
+
 ### Add `GROK_API_KEY` to System Variables (if use grok)
+
 ### Add `GEMINI_API_KEY` to System Variables (if use gemini)
 
-Before running the application, ensure you have set the system environment variables.
+
 
 ---
 
