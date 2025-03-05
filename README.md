@@ -37,10 +37,10 @@ go run src/main.go --setup --path F:/Git/commit-msg --name commit-msg
 
 ## Usage
 
-To run `commit-msg`, use:
+To run `commit-msg`, use: (Use the you git repo path)
 
 ```bash
-go run src/main.go --path F:/Git/commit-msg
+go run src/main.go .
 ```
 
 This will execute `commit-msg` in the current directory:
