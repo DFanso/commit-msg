@@ -35,7 +35,7 @@ func GenerateCommitMessage(config *types.Config, changes string, apiKey string) 
 	}
 
 	// Create HTTP request
-	req, err := http.NewRequest("POST", config.GrokAPI, bytes.NewBuffer(requestBody))
+	req, err := http.NewRequest("POST", "https://api.x.ai/v1/chat/completions", bytes.NewBuffer(requestBody))
 	if err != nil {
 		return "", err
 	}

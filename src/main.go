@@ -1,16 +1,13 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/dfanso/commit-msg/src/config"
 	"github.com/dfanso/commit-msg/src/gemini"
 	"github.com/dfanso/commit-msg/src/grok"
 	"github.com/dfanso/commit-msg/src/types"
@@ -27,19 +24,6 @@ func normalizePath(path string) string {
 
 // Main function
 func main() {
-	// Define command line flags
-	configFile := flag.String("config", "commit-helper.json", "Path to config file")
-	setupMode := flag.Bool("setup", false, "Setup configuration")
-	path := flag.String("path", "", "Path to monitor (for setup)")
-	repoName := flag.String("name", "", "Repository name (for setup)")
-	apiEndpoint := flag.String("api-endpoint", "https://api.x.ai/v1/chat/completions", "X.AI API endpoint (for setup)")
-	flag.Parse()
-
-	// Load environment variables from .env file
-	// if err := godotenv.Load(); err != nil {
-	// 	log.Printf("Warning: Error loading .env file: %v", err)
-	// }
-
 	// Get API key from environment variables
 	var apiKey string
 	if os.Getenv("COMMIT_LLM") == "google" {
@@ -56,135 +40,25 @@ func main() {
 		log.Fatalf("Invalid COMMIT_LLM value: %s", os.Getenv("COMMIT_LLM"))
 	}
 
-	// Check for "." argument which means use current directory
-	if len(flag.Args()) > 0 && flag.Args()[0] == "." {
-		// Get current directory
-		currentDir, err := os.Getwd()
-		if err != nil {
-			log.Fatalf("Failed to get current directory: %v", err)
-		}
-
-		// Override path with current directory
-		*path = currentDir
-
-		// Check if current directory is a git repository
-		if !isGitRepository(currentDir) {
-			log.Fatalf("Current directory is not a Git repository: %s", currentDir)
-		}
-	}
-
-	// If in setup mode, create a new configuration
-	if *setupMode {
-		if *path == "" || *repoName == "" {
-			log.Fatalf("Both --path and --name are required in setup mode")
-		}
-
-		// Normalize the path
-		normalizedPath := normalizePath(*path)
-
-		// Create new config with default endpoint
-		newConfig := &types.Config{
-			GrokAPI: *apiEndpoint,
-			Repos:   make(map[string]types.RepoConfig),
-		}
-
-		newConfig.Repos[*repoName] = types.RepoConfig{
-			Path:    normalizedPath,
-			LastRun: time.Now().Format(time.RFC3339),
-		}
-
-		if err := config.SaveConfig(*configFile, newConfig); err != nil {
-			log.Fatalf("Failed to save configuration: %v", err)
-		}
-
-		fmt.Printf("Repository '%s' configured successfully.\n", *repoName)
-		return
-	}
-
-	// Initialize or load configuration
-	cfg, err := config.LoadConfig(*configFile)
+	// Get current directory
+	currentDir, err := os.Getwd()
 	if err != nil {
-		// If config doesn't exist yet, create a new one
-		cfg = &types.Config{
-			GrokAPI: *apiEndpoint,
-			Repos:   make(map[string]types.RepoConfig),
-		}
+		log.Fatalf("Failed to get current directory: %v", err)
 	}
 
-	// If no path provided, list available repositories
-	if *path == "" {
-		fmt.Println("Available repositories:")
-		if len(cfg.Repos) == 0 {
-			fmt.Println("No repositories configured. Use --setup to add a repository.")
-			return
-		}
-		for name, repo := range cfg.Repos {
-			fmt.Printf("- %s: %s (Last run: %s)\n", name, repo.Path, repo.LastRun)
-		}
-		return
+	// Check if current directory is a git repository
+	if !isGitRepository(currentDir) {
+		log.Fatalf("Current directory is not a Git repository: %s", currentDir)
 	}
 
-	// Validate configuration
-	if cfg.GrokAPI == "" {
-		cfg.GrokAPI = *apiEndpoint // Use default endpoint if not set
-		if err := config.SaveConfig(*configFile, cfg); err != nil {
-			log.Printf("Warning: Failed to update API endpoint in config: %v", err)
-		}
+	// Create a minimal config for the API
+	config := &types.Config{
+		GrokAPI: "https://api.x.ai/v1/chat/completions",
 	}
 
-	// Normalize the input path
-	repoPath := normalizePath(*path)
-	var selectedRepo string
-	var repoConfig types.RepoConfig
-
-	// Find the repository configuration by path
-	for name, repo := range cfg.Repos {
-		// Normalize the stored path for comparison
-		storedPath := normalizePath(repo.Path)
-		if storedPath == repoPath {
-			selectedRepo = name
-			repoConfig = repo
-			break
-		}
-	}
-
-	// Auto-setup if repository not found in config
-	if selectedRepo == "" {
-		// Generate a repository name from the path
-		dirName := filepath.Base(repoPath)
-		if dirName == "" || dirName == "." || dirName == "/" || dirName == "\\" {
-			dirName = "auto-repo"
-		}
-
-		// Make sure the name is unique
-		baseName := dirName
-		counter := 1
-		for {
-			if _, exists := cfg.Repos[dirName]; !exists {
-				break
-			}
-			dirName = fmt.Sprintf("%s-%d", baseName, counter)
-			counter++
-		}
-
-		// Add the repository to the configuration
-		selectedRepo = dirName
-		repoConfig = types.RepoConfig{
-			Path:    repoPath,
-			LastRun: time.Now().Format(time.RFC3339),
-		}
-		cfg.Repos[selectedRepo] = repoConfig
-
-		if err := config.SaveConfig(*configFile, cfg); err != nil {
-			log.Printf("Warning: Failed to save auto-configured repository: %v", err)
-		} else {
-			fmt.Printf("Repository '%s' auto-configured successfully.\n", selectedRepo)
-		}
-	}
-
-	// Ensure the path is a Git repository
-	if !isGitRepository(repoConfig.Path) {
-		log.Fatalf("The specified path is not a Git repository: %s", repoConfig.Path)
+	// Create a repo config for the current directory
+	repoConfig := types.RepoConfig{
+		Path: currentDir,
 	}
 
 	// Get the changes
@@ -201,9 +75,9 @@ func main() {
 	// Pass API key to GenerateCommitMessage
 	var commitMsg string
 	if os.Getenv("COMMIT_LLM") == "google" {
-		commitMsg, err = gemini.GenerateCommitMessage(cfg, changes, apiKey)
+		commitMsg, err = gemini.GenerateCommitMessage(config, changes, apiKey)
 	} else {
-		commitMsg, err = grok.GenerateCommitMessage(cfg, changes, apiKey)
+		commitMsg, err = grok.GenerateCommitMessage(config, changes, apiKey)
 	}
 	if err != nil {
 		log.Fatalf("Failed to generate commit message: %v", err)
@@ -211,13 +85,6 @@ func main() {
 
 	// Display the commit message
 	fmt.Println(commitMsg)
-
-	// Update the last run time
-	repoConfig.LastRun = time.Now().Format(time.RFC3339)
-	cfg.Repos[selectedRepo] = repoConfig
-	if err := config.SaveConfig(*configFile, cfg); err != nil {
-		log.Printf("Warning: Failed to update last run time: %v", err)
-	}
 }
 
 // Check if directory is a git repository
