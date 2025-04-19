@@ -24,7 +24,7 @@ func GenerateCommitMessage(config *types.Config, changes string, apiKey string) 
 				Content: prompt,
 			},
 		},
-		Model:       "grok-2-latest",
+		Model:       "grok-3-mini-fast-beta",
 		Stream:      false,
 		Temperature: 0,
 	}
