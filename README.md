@@ -8,7 +8,7 @@ Below is a sample execution of `commit-msg`:
 
 ![Commit-msg Screenshot](image.png)
 
-Before running the application, ensure you have set the system environment variables.
+Before running the application, ensure you have set the system environment variables. and add commit.exe to path variables (same for linux macOS)
 
 ## You can Use Gemini or Grok as the LLM to Generate Commit Messages
 
