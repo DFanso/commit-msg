@@ -10,13 +10,24 @@ import (
 	"github.com/dfanso/commit-msg/src/types"
 )
 
-func GenerateCommitMessage(config *types.Config, changes string, apiKey string) (string, error) {
-	// Prepare request to Gemini API
+type Service struct {
+	apiKey string
+	config *types.Config
+}
+
+func NewGeminiLLM(apiKey string, config *types.Config) (types.LLM, error) {
+	return Service{
+		apiKey: apiKey,
+		config: config,
+	}, nil
+}
+
+func (s Service) GenerateCommitMessage(ctx context.Context, changes string) (string, error) {
+	// Prepare request to Google API
 	prompt := fmt.Sprintf("%s\n\n%s", types.CommitPrompt, changes)
 
 	// Create context and client
-	ctx := context.Background()
-	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	client, err := genai.NewClient(ctx, option.WithAPIKey(s.apiKey))
 	if err != nil {
 		return "", err
 	}

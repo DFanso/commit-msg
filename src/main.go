@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/dfanso/commit-msg/src/gemini"
 	"github.com/dfanso/commit-msg/src/grok"
@@ -24,20 +26,29 @@ func normalizePath(path string) string {
 
 // Main function
 func main() {
+	ctx := context.Background()
+
+	// Ensure the whole process is cancelled if it takes too long.
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
+	llmType := types.LLMType(os.Getenv("COMMIT_LLM"))
+
 	// Get API key from environment variables
 	var apiKey string
-	if os.Getenv("COMMIT_LLM") == "google" {
+	switch {
+	case llmType == types.Google:
 		apiKey = os.Getenv("GOOGLE_API_KEY")
 		if apiKey == "" {
 			log.Fatalf("GOOGLE_API_KEY is not set")
 		}
-	} else if os.Getenv("COMMIT_LLM") == "grok" {
+	case llmType == types.Grok:
 		apiKey = os.Getenv("GROK_API_KEY")
 		if apiKey == "" {
 			log.Fatalf("GROK_API_KEY is not set")
 		}
-	} else {
-		log.Fatalf("Invalid COMMIT_LLM value: %s", os.Getenv("COMMIT_LLM"))
+	default:
+		log.Fatalf("Invalid COMMIT_LLM value: %s", llmType)
 	}
 
 	// Get current directory
@@ -72,19 +83,30 @@ func main() {
 		return
 	}
 
-	// Pass API key to GenerateCommitMessage
-	var commitMsg string
-	if os.Getenv("COMMIT_LLM") == "google" {
-		commitMsg, err = gemini.GenerateCommitMessage(config, changes, apiKey)
-	} else {
-		commitMsg, err = grok.GenerateCommitMessage(config, changes, apiKey)
+	llm, err := resolveLLM(llmType, config)
+	if err != nil {
+		log.Fatalf("Failed to resolve LLM: %v", err)
 	}
+
+	commitMsg, err := llm.GenerateCommitMessage(ctx, changes)
 	if err != nil {
 		log.Fatalf("Failed to generate commit message: %v", err)
 	}
 
 	// Display the commit message
 	fmt.Println(commitMsg)
+}
+
+// resolveLLM returns the LLM service based on the provided type.
+func resolveLLM(llm types.LLMType, config *types.Config) (types.LLM, error) {
+	switch llm {
+	case types.Grok:
+		return grok.NewGrokService(os.Getenv("GROK_API_KEY"), config)
+	case types.Google:
+		return gemini.NewGeminiLLM(os.Getenv("GOOGLE_API_KEY"), config)
+	default:
+		return nil, fmt.Errorf("unknown LLM type %q", llm)
+	}
 }
 
 // Check if directory is a git repository

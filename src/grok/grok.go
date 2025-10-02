@@ -2,6 +2,7 @@ package grok
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -12,12 +13,23 @@ import (
 	"github.com/dfanso/commit-msg/src/types"
 )
 
-func GenerateCommitMessage(config *types.Config, changes string, apiKey string) (string, error) {
+type Service struct {
+	apiKey string
+	config *types.Config
+}
+
+func NewGrokService(apiKey string, config *types.Config) (types.LLM, error) {
+	return Service{
+		apiKey: apiKey,
+		config: config,
+	}, nil
+}
+
+func (s Service) GenerateCommitMessage(ctx context.Context, changes string) (string, error) {
 	// Prepare request to X.AI (Grok) API
 	prompt := fmt.Sprintf("%s\n\n%s", types.CommitPrompt, changes)
 
 	request := types.GrokRequest{
-
 		Messages: []types.Message{
 			{
 				Role:    "user",
@@ -35,14 +47,14 @@ func GenerateCommitMessage(config *types.Config, changes string, apiKey string) 
 	}
 
 	// Create HTTP request
-	req, err := http.NewRequest("POST", "https://api.x.ai/v1/chat/completions", bytes.NewBuffer(requestBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.x.ai/v1/chat/completions", bytes.NewBuffer(requestBody))
 	if err != nil {
 		return "", err
 	}
 
 	// Set headers
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.apiKey))
 
 	// Configure HTTP client with improved TLS settings
 	transport := &http.Transport{

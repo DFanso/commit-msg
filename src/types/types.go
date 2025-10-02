@@ -1,5 +1,21 @@
 package types
 
+import "context"
+
+// LLM abstracts the LLM api communication.
+type LLM interface {
+	// GenerateCommitMessage generates a commit message based on the changes.
+	GenerateCommitMessage(ctx context.Context, changes string) (string, error)
+}
+
+// LLMType designates a specific LLM provider.
+type LLMType string
+
+const (
+	Grok   LLMType = "grok"
+	Google LLMType = "google"
+)
+
 // Configuration structure
 type Config struct {
 	GrokAPI string                `json:"grok_api"`
