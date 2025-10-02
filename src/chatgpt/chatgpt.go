@@ -29,6 +29,5 @@ func GenerateCommitMessage(config *types.Config, changes string, apiKey string) 
 
 	// Extract and return the commit message
 	commitMsg := resp.Choices[0].Message.Content
-	log.Printf("Debug result: %s", commitMsg)
 	return commitMsg, nil
 }
