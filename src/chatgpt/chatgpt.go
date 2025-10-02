@@ -3,7 +3,6 @@ package chatgpt
 import (
 	"context"
 	"fmt"
-	"log"
 
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
