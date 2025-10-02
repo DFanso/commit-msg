@@ -11,6 +11,7 @@ import (
 	"github.com/dfanso/commit-msg/src/gemini"
 	"github.com/dfanso/commit-msg/src/grok"
 	"github.com/dfanso/commit-msg/src/types"
+	"github.com/dfanso/commit-msg/src/chatgpt"
 )
 
 // Normalize path to handle both forward and backslashes
@@ -35,6 +36,11 @@ func main() {
 		apiKey = os.Getenv("GROK_API_KEY")
 		if apiKey == "" {
 			log.Fatalf("GROK_API_KEY is not set")
+		}
+	} else if os.Getenv("COMMIT_LLM") == "chatgpt" {
+		apiKey = os.Getenv("OPENAI_API_KEY")
+		if apiKey == "" {
+			log.Fatalf("OPENAI_API_KEY is not set")
 		}
 	} else {
 		log.Fatalf("Invalid COMMIT_LLM value: %s", os.Getenv("COMMIT_LLM"))
@@ -76,9 +82,12 @@ func main() {
 	var commitMsg string
 	if os.Getenv("COMMIT_LLM") == "google" {
 		commitMsg, err = gemini.GenerateCommitMessage(config, changes, apiKey)
+	} else if os.Getenv("COMMIT_LLM") == "chatgpt" {
+		commitMsg, err = chatgpt.GenerateCommitMessage(config, changes, apiKey)
 	} else {
 		commitMsg, err = grok.GenerateCommitMessage(config, changes, apiKey)
 	}
+	
 	if err != nil {
 		log.Fatalf("Failed to generate commit message: %v", err)
 	}
