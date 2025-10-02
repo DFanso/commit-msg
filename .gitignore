@@ -21,3 +21,4 @@
 go.work
 .env
 commit-helper.json
+HACKTOBERFEST_SETUP.md
