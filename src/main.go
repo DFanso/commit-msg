@@ -12,6 +12,7 @@ import (
 	"github.com/dfanso/commit-msg/src/grok"
 	"github.com/dfanso/commit-msg/src/types"
 	"github.com/dfanso/commit-msg/src/chatgpt"
+	"github.com/pterm/pterm"
 )
 
 // Normalize path to handle both forward and backslashes
@@ -78,7 +79,12 @@ func main() {
 		return
 	}
 
-	// Pass API key to GenerateCommitMessage
+	spinnerGenerating, err := pterm.DefaultSpinner.Start("Generating commit message...")
+	if err != nil {
+		log.Fatalf("Failed to start spinner: %v", err)
+	}
+	defer spinnerGenerating.Stop()
+
 	var commitMsg string
 	if os.Getenv("COMMIT_LLM") == "google" {
 		commitMsg, err = gemini.GenerateCommitMessage(config, changes, apiKey)
@@ -88,12 +94,16 @@ func main() {
 		commitMsg, err = grok.GenerateCommitMessage(config, changes, apiKey)
 	}
 	
+
 	if err != nil {
 		log.Fatalf("Failed to generate commit message: %v", err)
 	}
 
+	spinnerGenerating.Success()
+
 	// Display the commit message
-	fmt.Println(commitMsg)
+	pterm.DefaultBasicText.Println()
+	pterm.DefaultBasicText.Println(commitMsg)
 }
 
 // Check if directory is a git repository
