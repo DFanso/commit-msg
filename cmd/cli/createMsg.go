@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/atotto/clipboard"
 	"github.com/dfanso/commit-msg/cmd/cli/store"
@@ -18,7 +19,12 @@ import (
 	"github.com/dfanso/commit-msg/pkg/types"
 	"github.com/google/shlex"
 	"github.com/pterm/pterm"
+	"golang.org/x/time/rate"
 )
+
+// Burst once every 5 times per second
+// Make the limiter a global variable to better control the rate when it is used.
+var apiRateLimiter = rate.NewLimiter(rate.Every(time.Second/5), 5)
 
 // CreateCommitMsg launches the interactive flow for reviewing, regenerating,
 // editing, and accepting AI-generated commit messages in the current repo.
@@ -294,6 +300,9 @@ func resolveOllamaConfig(apiKey string) (url, model string) {
 }
 
 func generateMessage(ctx context.Context, provider llm.Provider, changes string, opts *types.GenerationOptions) (string, error) {
+	if err := apiRateLimiter.Wait(ctx); err != nil {
+		return "", err
+	}
 	return provider.Generate(ctx, changes, opts)
 }
 
