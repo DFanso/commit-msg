@@ -23,7 +23,8 @@ import (
 // CreateCommitMsg launches the interactive flow for reviewing, regenerating,
 // editing, and accepting AI-generated commit messages in the current repo.
 // If dryRun is true, it displays the prompt without making an API call.
-func CreateCommitMsg(Store *store.StoreMethods, dryRun bool, autoCommit bool) {
+// If verbose is true, shows detailed diff statistics and processing info.
+func CreateCommitMsg(Store *store.StoreMethods, dryRun bool, autoCommit bool, verbose bool) {
 	// Validate COMMIT_LLM and required API keys
 	useLLM, err := Store.DefaultLLMKey()
 	if err != nil {
@@ -66,6 +67,12 @@ func CreateCommitMsg(Store *store.StoreMethods, dryRun bool, autoCommit bool) {
 
 	pterm.Println()
 	display.ShowFileStatistics(fileStats)
+
+	if verbose {
+		pterm.Info.Printf("Repository: %s\n", currentDir)
+		pterm.Info.Printf("File summary: %d staged, %d unstaged, %d untracked\n",
+			len(fileStats.StagedFiles), len(fileStats.UnstagedFiles), len(fileStats.UntrackedFiles))
+	}
 
 	if fileStats.TotalFiles == 0 {
 		pterm.Warning.Println("No changes detected in the Git repository.")
@@ -124,12 +131,16 @@ func CreateCommitMsg(Store *store.StoreMethods, dryRun bool, autoCommit bool) {
 
 		pterm.Info.Printf("Truncated diff to %d lines, %d characters.\n", actualLineCount, len(changes))
 		pterm.Info.Println("Consider committing smaller changes for more accurate commit messages.")
+	} else if verbose {
+		pterm.Info.Printf("Diff statistics: %d lines, %d characters (within limits).\n", len(diffLines), len(changes))
+		inputTokens := estimateTokens(changes)
+		pterm.Info.Printf("Estimated tokens for LLM: %d input tokens.\n", inputTokens)
 	}
 
 	// Handle dry-run mode: display what would be sent to LLM without making API call
 	if dryRun {
 		pterm.Println()
-		displayDryRunInfo(commitLLM, config, changes, apiKey)
+		displayDryRunInfo(commitLLM, config, changes, apiKey, verbose)
 		return
 	}
 
@@ -561,7 +572,7 @@ func displayMissingCredentialHint(provider types.LLMProvider) {
 }
 
 // displayDryRunInfo shows what would be sent to the LLM without making an API call
-func displayDryRunInfo(provider types.LLMProvider, config *types.Config, changes string, apiKey string) {
+func displayDryRunInfo(provider types.LLMProvider, config *types.Config, changes string, apiKey string, verbose bool) {
 	pterm.DefaultHeader.WithFullWidth().
 		WithBackgroundStyle(pterm.NewStyle(pterm.BgBlue)).
 		WithTextStyle(pterm.NewStyle(pterm.FgWhite, pterm.Bold)).
@@ -633,11 +644,17 @@ func displayDryRunInfo(provider types.LLMProvider, config *types.Config, changes
 	}
 
 	statsData = append(statsData, []string{"Estimated Processing Time", fmt.Sprintf("%d-%d seconds", minTime, maxTime)})
+	if verbose {
+		statsData = append(statsData, []string{"Prompt Length", fmt.Sprintf("%d characters", len(prompt))})
+	}
 
 	pterm.DefaultTable.WithHasHeader(false).WithData(statsData).Render()
 
 	pterm.Println()
 	pterm.Success.Println("Dry-run complete. To generate actual commit message, run without --dry-run flag.")
+	if !verbose {
+		pterm.Info.Println("Use --toggle flag to see debug details.")
+	}
 }
 
 // maskAPIKey masks the API key for display purposes

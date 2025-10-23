@@ -29,6 +29,10 @@ var rootCmd = &cobra.Command{
 
 	# Generate a commit message and automatically commit it
 	commit . --auto
+
+	# Show verbose debug information (diff stats, full prompts, repository details)
+	commit . --toggle
+	commit . --dry-run --toggle
 `,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
@@ -108,7 +112,13 @@ var creatCommitMsg = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		CreateCommitMsg(Store, dryRun, autoCommit)
+
+		verbose, err := cmd.Flags().GetBool("toggle")
+		if err != nil {
+			return err
+		}
+
+		CreateCommitMsg(Store, dryRun, autoCommit, verbose)
 		return nil
 	},
 }
@@ -123,11 +133,10 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-
-	// Add --dry-run and --auto as persistent flags so they show in top-level help
+	// Add --dry-run, --auto, and --toggle as persistent flags so they show in top-level help
 	rootCmd.PersistentFlags().Bool("dry-run", false, "Preview the prompt that would be sent to the LLM without making an API call")
 	rootCmd.PersistentFlags().Bool("auto", false, "Automatically commit with the generated message")
+	rootCmd.PersistentFlags().BoolP("toggle", "t", false, "Show verbose debug information (diff stats, full prompts, repository details)")
 
 	rootCmd.AddCommand(creatCommitMsg)
 	rootCmd.AddCommand(llmCmd)
