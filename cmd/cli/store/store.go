@@ -11,6 +11,7 @@ import (
 	"github.com/99designs/keyring"
 
 	"github.com/dfanso/commit-msg/internal/cache"
+	"github.com/dfanso/commit-msg/internal/usage"
 	"github.com/dfanso/commit-msg/pkg/types"
 	StoreUtils "github.com/dfanso/commit-msg/utils"
 )
@@ -18,6 +19,7 @@ import (
 type StoreMethods struct {
 	ring  keyring.Keyring
 	cache *cache.CacheManager
+	usage *usage.StatsManager
 }
 
 // NewStoreMethods creates a new StoreMethods instance with cache support.
@@ -34,9 +36,15 @@ func NewStoreMethods() (*StoreMethods, error) {
 		return nil, fmt.Errorf("failed to initialize cache: %w", err)
 	}
 
+	usageManager, err := usage.NewStatsManager()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize usage statistics: %w", err)
+	}
+
 	return &StoreMethods{
 		ring:  ring,
 		cache: cacheManager,
+		usage: usageManager,
 	}, nil
 }
 
@@ -408,4 +416,46 @@ func (s *StoreMethods) GetCacheStats() *types.CacheStats {
 // CleanupCache removes old entries from the cache.
 func (s *StoreMethods) CleanupCache() error {
 	return s.cache.Cleanup()
+}
+
+// Usage statistics management methods
+
+// GetUsageManager returns the usage statistics manager instance.
+func (s *StoreMethods) GetUsageManager() *usage.StatsManager {
+	return s.usage
+}
+
+// RecordGenerationEvent records a commit message generation event for statistics.
+func (s *StoreMethods) RecordGenerationEvent(event *types.GenerationEvent) error {
+	return s.usage.RecordGeneration(event)
+}
+
+// GetUsageStats returns comprehensive usage statistics.
+func (s *StoreMethods) GetUsageStats() *types.UsageStats {
+	return s.usage.GetStats()
+}
+
+// GetMostUsedProvider returns the most frequently used LLM provider.
+func (s *StoreMethods) GetMostUsedProvider() (types.LLMProvider, int) {
+	return s.usage.GetMostUsedProvider()
+}
+
+// GetOverallSuccessRate returns the overall success rate as a percentage.
+func (s *StoreMethods) GetOverallSuccessRate() float64 {
+	return s.usage.GetSuccessRate()
+}
+
+// GetCacheHitRate returns the cache hit rate as a percentage.
+func (s *StoreMethods) GetCacheHitRate() float64 {
+	return s.usage.GetCacheHitRate()
+}
+
+// GetProviderRanking returns providers ranked by usage frequency.
+func (s *StoreMethods) GetProviderRanking() []types.LLMProvider {
+	return s.usage.GetProviderRanking()
+}
+
+// ResetUsageStats clears all usage statistics.
+func (s *StoreMethods) ResetUsageStats() error {
+	return s.usage.ResetStats()
 }
