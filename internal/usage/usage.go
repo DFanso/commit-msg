@@ -71,11 +71,13 @@ func (sm *StatsManager) RecordGeneration(event *types.GenerationEvent) error {
 		sm.stats.FirstUse = now
 	}
 
-	// Update cache stats
-	if event.CacheHit {
-		sm.stats.CacheHits++
-	} else {
-		sm.stats.CacheMisses++
+	// Update cache stats (only when cache was actually checked)
+	if event.CacheChecked {
+		if event.CacheHit {
+			sm.stats.CacheHits++
+		} else {
+			sm.stats.CacheMisses++
+		}
 	}
 
 	// Update average generation time

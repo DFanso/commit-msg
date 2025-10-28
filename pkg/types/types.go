@@ -179,6 +179,7 @@ type GenerationEvent struct {
 	TokensUsed    int         `json:"tokens_used"`
 	Cost          float64     `json:"cost"`
 	CacheHit      bool        `json:"cache_hit"`
+	CacheChecked  bool        `json:"cache_checked"`
 	Timestamp     string      `json:"timestamp"`
 	ErrorMessage  string      `json:"error_message,omitempty"`
 }

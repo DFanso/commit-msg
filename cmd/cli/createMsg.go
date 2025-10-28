@@ -356,8 +356,11 @@ func generateMessage(ctx context.Context, provider llm.Provider, changes string,
 func generateMessageWithCache(ctx context.Context, provider llm.Provider, store *store.StoreMethods, providerType types.LLMProvider, changes string, opts *types.GenerationOptions) (string, error) {
 	startTime := time.Now()
 	
+	// Determine if this is a first attempt (cache check eligible)
+	isFirstAttempt := opts == nil || opts.Attempt <= 1
+	
 	// Check cache first (only for first attempt to avoid caching regenerations)
-	if opts == nil || opts.Attempt <= 1 {
+	if isFirstAttempt {
 		if cachedEntry, found := store.GetCachedMessage(providerType, changes, opts); found {
 			pterm.Info.Printf("Using cached commit message (saved $%.4f)\n", cachedEntry.Cost)
 			
@@ -369,6 +372,7 @@ func generateMessageWithCache(ctx context.Context, provider llm.Provider, store 
 				TokensUsed:     0, // No tokens used for cached result
 				Cost:           0, // No cost for cached result
 				CacheHit:       true,
+				CacheChecked:   true,
 				Timestamp:      time.Now().UTC().Format(time.RFC3339),
 			}
 			
@@ -398,6 +402,7 @@ func generateMessageWithCache(ctx context.Context, provider llm.Provider, store 
 		TokensUsed:     inputTokens + outputTokens,
 		Cost:           cost,
 		CacheHit:       false,
+		CacheChecked:   isFirstAttempt, // Only first attempts check cache
 		Timestamp:      time.Now().UTC().Format(time.RFC3339),
 	}
 	
@@ -416,7 +421,7 @@ func generateMessageWithCache(ctx context.Context, provider llm.Provider, store 
 	}
 
 	// Cache the result (only for first attempt)
-	if opts == nil || opts.Attempt <= 1 {
+	if isFirstAttempt {
 		// Store in cache
 		if cacheErr := store.SetCachedMessage(providerType, changes, opts, message, cost, nil); cacheErr != nil {
 			// Log cache error but don't fail the generation
