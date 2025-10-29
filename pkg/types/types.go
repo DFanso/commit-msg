@@ -141,3 +141,45 @@ type CacheConfig struct {
 	CleanupInterval int    `json:"cleanup_interval_hours"`
 	CacheFilePath   string `json:"cache_file_path"`
 }
+
+// UsageStats tracks comprehensive usage statistics for the application.
+type UsageStats struct {
+	TotalGenerations    int                        `json:"total_generations"`
+	SuccessfulGenerations int                      `json:"successful_generations"`
+	FailedGenerations   int                        `json:"failed_generations"`
+	ProviderStats       map[LLMProvider]*ProviderStats `json:"provider_stats"`
+	FirstUse            string                     `json:"first_use"`
+	LastUse             string                     `json:"last_use"`
+	TotalCost           float64                    `json:"total_cost"`
+	TotalTokensUsed     int                        `json:"total_tokens_used"`
+	CacheHits           int                        `json:"cache_hits"`
+	CacheMisses         int                        `json:"cache_misses"`
+	AverageGenerationTime float64                  `json:"average_generation_time_ms"`
+}
+
+// ProviderStats tracks statistics for a specific LLM provider.
+type ProviderStats struct {
+	Name                  LLMProvider `json:"name"`
+	TotalUses             int         `json:"total_uses"`
+	SuccessfulUses        int         `json:"successful_uses"`
+	FailedUses            int         `json:"failed_uses"`
+	TotalCost             float64     `json:"total_cost"`
+	TotalTokensUsed       int         `json:"total_tokens_used"`
+	AverageGenerationTime float64     `json:"average_generation_time_ms"`
+	FirstUsed             string      `json:"first_used"`
+	LastUsed              string      `json:"last_used"`
+	SuccessRate           float64     `json:"success_rate"`
+}
+
+// GenerationEvent represents a single commit message generation event for tracking.
+type GenerationEvent struct {
+	Provider      LLMProvider `json:"provider"`
+	Success       bool        `json:"success"`
+	GenerationTime float64     `json:"generation_time_ms"`
+	TokensUsed    int         `json:"tokens_used"`
+	Cost          float64     `json:"cost"`
+	CacheHit      bool        `json:"cache_hit"`
+	CacheChecked  bool        `json:"cache_checked"`
+	Timestamp     string      `json:"timestamp"`
+	ErrorMessage  string      `json:"error_message,omitempty"`
+}

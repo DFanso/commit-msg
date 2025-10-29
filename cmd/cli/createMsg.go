@@ -354,25 +354,74 @@ func generateMessage(ctx context.Context, provider llm.Provider, changes string,
 
 // generateMessageWithCache generates a commit message with caching support.
 func generateMessageWithCache(ctx context.Context, provider llm.Provider, store *store.StoreMethods, providerType types.LLMProvider, changes string, opts *types.GenerationOptions) (string, error) {
+	startTime := time.Now()
+	
+	// Determine if this is a first attempt (cache check eligible)
+	isFirstAttempt := opts == nil || opts.Attempt <= 1
+	
 	// Check cache first (only for first attempt to avoid caching regenerations)
-	if opts == nil || opts.Attempt <= 1 {
+	if isFirstAttempt {
 		if cachedEntry, found := store.GetCachedMessage(providerType, changes, opts); found {
 			pterm.Info.Printf("Using cached commit message (saved $%.4f)\n", cachedEntry.Cost)
+			
+			// Record cache hit event
+			event := &types.GenerationEvent{
+				Provider:       providerType,
+				Success:        true,
+				GenerationTime: float64(time.Since(startTime).Nanoseconds()) / 1e6, // Convert to milliseconds
+				TokensUsed:     0, // No tokens used for cached result
+				Cost:           0, // No cost for cached result
+				CacheHit:       true,
+				CacheChecked:   true,
+				Timestamp:      time.Now().UTC().Format(time.RFC3339),
+			}
+			
+			if err := store.RecordGenerationEvent(event); err != nil {
+				// Log the error but don't fail the operation
+				fmt.Printf("Warning: Failed to record usage statistics: %v\n", err)
+			}
+			
 			return cachedEntry.Message, nil
 		}
 	}
 
 	// Generate new message
 	message, err := provider.Generate(ctx, changes, opts)
+	generationTime := float64(time.Since(startTime).Nanoseconds()) / 1e6 // Convert to milliseconds
+	
+	// Estimate tokens and cost
+	inputTokens := estimateTokens(types.BuildCommitPrompt(changes, opts))
+	outputTokens := 100 // Estimate output tokens
+	cost := estimateCost(providerType, inputTokens, outputTokens)
+	
+	// Record generation event
+	event := &types.GenerationEvent{
+		Provider:       providerType,
+		Success:        err == nil,
+		GenerationTime: generationTime,
+		TokensUsed:     inputTokens + outputTokens,
+		Cost:           cost,
+		CacheHit:       false,
+		CacheChecked:   isFirstAttempt, // Only first attempts check cache
+		Timestamp:      time.Now().UTC().Format(time.RFC3339),
+	}
+	
+	if err != nil {
+		event.ErrorMessage = err.Error()
+	}
+	
+	// Record the event regardless of success/failure
+	if statsErr := store.RecordGenerationEvent(event); statsErr != nil {
+		// Log the error but don't fail the operation
+		fmt.Printf("Warning: Failed to record usage statistics: %v\n", statsErr)
+	}
+	
 	if err != nil {
 		return "", err
 	}
 
 	// Cache the result (only for first attempt)
-	if opts == nil || opts.Attempt <= 1 {
-		// Estimate cost for caching
-		cost := estimateCost(providerType, estimateTokens(types.BuildCommitPrompt(changes, opts)), 100)
-
+	if isFirstAttempt {
 		// Store in cache
 		if cacheErr := store.SetCachedMessage(providerType, changes, opts, message, cost, nil); cacheErr != nil {
 			// Log cache error but don't fail the generation

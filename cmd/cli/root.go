@@ -141,6 +141,7 @@ func init() {
 	rootCmd.AddCommand(creatCommitMsg)
 	rootCmd.AddCommand(llmCmd)
 	rootCmd.AddCommand(cacheCmd)
+	rootCmd.AddCommand(statsCmd)
 	llmCmd.AddCommand(llmSetupCmd)
 	llmCmd.AddCommand(llmUpdateCmd)
 	cacheCmd.AddCommand(cacheStatsCmd)
