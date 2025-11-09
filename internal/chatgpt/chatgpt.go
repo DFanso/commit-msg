@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/dfanso/commit-msg/cmd/cli/store"
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/dfanso/commit-msg/pkg/types"
 )
+
+var storeMethods *store.StoreMethods
 
 const (
 	chatgptModel = openai.ChatModelGPT4o
@@ -20,7 +23,9 @@ func GenerateCommitMessage(config *types.Config, changes string, apiKey string, 
 
 	client := openai.NewClient(option.WithAPIKey(apiKey))
 
-	prompt := types.BuildCommitPrompt(changes, opts)
+	// getting the custom template
+	customTemplate, _ := storeMethods.GetTemplate()
+	prompt := types.BuildCommitPromptWithTemplate(changes, opts, customTemplate)
 
 	resp, err := client.Chat.Completions.New(context.TODO(), openai.ChatCompletionNewParams{
 		Messages: []openai.ChatCompletionMessageParamUnion{
