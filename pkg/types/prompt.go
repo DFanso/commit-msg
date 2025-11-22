@@ -28,8 +28,19 @@ Here are the changes:
 // BuildCommitPrompt constructs the prompt that will be sent to the LLM, applying
 // any optional tone/style instructions before appending the repository changes.
 func BuildCommitPrompt(changes string, opts *GenerationOptions) string {
+	return BuildCommitPromptWithTemplate(changes, opts, "")
+}
+
+func BuildCommitPromptWithTemplate(changes string, opts *GenerationOptions, customTemplate string) string {
 	var builder strings.Builder
-	builder.WriteString(CommitPrompt)
+
+	// use custom template if provided
+	basePrompt := CommitPrompt
+	if strings.TrimSpace(customTemplate) != "" {
+		basePrompt = strings.TrimSpace(customTemplate) + "\n\nHere are the changes:\n"
+	}
+
+	builder.WriteString(basePrompt)
 
 	if opts != nil {
 		if opts.Attempt > 1 {

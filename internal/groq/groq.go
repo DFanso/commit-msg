@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/dfanso/commit-msg/cmd/cli/store"
 	internalHTTP "github.com/dfanso/commit-msg/internal/http"
 	"github.com/dfanso/commit-msg/pkg/types"
 )
@@ -48,7 +49,8 @@ var (
 	// allow overrides in tests
 	baseURL = "https://api.groq.com/openai/v1/chat/completions"
 	// httpClient can be overridden in tests; defaults to the internal http client
-	httpClient *http.Client
+	httpClient   *http.Client
+	storeMethods *store.StoreMethods
 )
 
 func init() {
@@ -61,7 +63,8 @@ func GenerateCommitMessage(_ *types.Config, changes string, apiKey string, opts 
 		return "", fmt.Errorf("no changes provided for commit message generation")
 	}
 
-	prompt := types.BuildCommitPrompt(changes, opts)
+	customTemplate, _ := storeMethods.GetTemplate()
+	prompt := types.BuildCommitPromptWithTemplate(changes, opts, customTemplate)
 
 	model := os.Getenv("GROQ_MODEL")
 	if model == "" {

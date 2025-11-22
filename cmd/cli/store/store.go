@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"os"
 
@@ -62,8 +63,10 @@ type LLMProvider struct {
 
 // Config describes the on-disk structure for all saved LLM providers.
 type Config struct {
-	Default      types.LLMProvider   `json:"default"`
-	LLMProviders []types.LLMProvider `json:"models"`
+	Default           types.LLMProvider   `json:"default"`
+	LLMProviders      []types.LLMProvider `json:"models"`
+	CustomTemplate    string              `json:"custom_template,omitempty"`
+	TemplateUpdatedAt string              `json:"template_updated_at,omitempty"`
 }
 
 // Save persists or updates an LLM provider entry, marking it as the default.
@@ -458,4 +461,123 @@ func (s *StoreMethods) GetProviderRanking() []types.LLMProvider {
 // ResetUsageStats clears all usage statistics.
 func (s *StoreMethods) ResetUsageStats() error {
 	return s.usage.ResetStats()
+}
+
+// Template management methods
+
+// SaveTemplate stores a custom commit message template.
+func (s *StoreMethods) SaveTemplate(template string) error {
+	var cfg Config
+
+	configPath, err := StoreUtils.GetConfigPath()
+
+	if err != nil {
+		return err
+	}
+
+	isConfigExists := StoreUtils.CheckConfig(configPath)
+	if !isConfigExists {
+		err := StoreUtils.CreateConfigFile(configPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	data, err := os.ReadFile(configPath)
+	if errors.Is(err, os.ErrNotExist) {
+		data = []byte("{}")
+	} else if err != nil {
+		return err
+	}
+
+	if len(data) > 2 {
+		err = json.Unmarshal(data, &cfg)
+		if err != nil {
+			return fmt.Errorf("config file format error: %w", err)
+		}
+	}
+
+	cfg.CustomTemplate = template
+	cfg.TemplateUpdatedAt = fmt.Sprintf("%v", time.Now())
+
+	data, err = json.MarshalIndent(cfg, "", " ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(configPath, data, 0600)
+}
+
+func (s *StoreMethods) GetTemplate() (string, error) {
+	var cfg Config
+
+	configPath, err := StoreUtils.GetConfigPath()
+	if err != nil {
+		return "", err
+	}
+
+	isConfigExists := StoreUtils.CheckConfig(configPath)
+	if !isConfigExists {
+		return "", fmt.Errorf("config file does not exist at %s, run 'commit llm setup' to create it", configPath)
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return "", err
+	}
+
+	if len(data) > 2 {
+		err = json.Unmarshal(data, &cfg)
+		if err != nil {
+			return "", fmt.Errorf("config file format error: %w", err)
+		}
+	}
+
+	if cfg.CustomTemplate == "" {
+		return "", errors.New("no custom template set")
+	}
+
+	return cfg.CustomTemplate, nil
+}
+
+// DeleteTemplate removes the custom commit message template.
+func (s *StoreMethods) DeleteTemplate() error {
+	var cfg Config
+
+	configPath, err := StoreUtils.GetConfigPath()
+	if err != nil {
+		return err
+	}
+
+	isConfigExists := StoreUtils.CheckConfig(configPath)
+	if !isConfigExists {
+		return fmt.Errorf("config file does not exist at %s, run 'commit llm setup' to create it", configPath)
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return err
+	}
+
+	if len(data) > 2 {
+		err = json.Unmarshal(data, &cfg)
+		if err != nil {
+			return fmt.Errorf("config file format error: %w", err)
+		}
+	}
+
+	cfg.CustomTemplate = ""
+	cfg.TemplateUpdatedAt = ""
+
+	data, err = json.MarshalIndent(cfg, "", " ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(configPath, data, 0600)
+}
+
+func (s *StoreMethods) HasCustomTemplate() bool {
+	template, err := s.GetTemplate()
+	return err == nil && template != ""
 }

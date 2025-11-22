@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/dfanso/commit-msg/cmd/cli/store"
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
 
@@ -15,11 +16,14 @@ const (
 	geminiTemperature = 0.2
 )
 
+var storeMethods *store.StoreMethods
+
 // GenerateCommitMessage asks Google Gemini to author a commit message for the
 // supplied repository changes and optional style instructions.
 func GenerateCommitMessage(config *types.Config, changes string, apiKey string, opts *types.GenerationOptions) (string, error) {
 	// Prepare request to Gemini API
-	prompt := types.BuildCommitPrompt(changes, opts)
+	customTemplate, _ := storeMethods.GetTemplate()
+	prompt := types.BuildCommitPromptWithTemplate(changes, opts, customTemplate)
 
 	// Create context and client
 	ctx := context.Background()
