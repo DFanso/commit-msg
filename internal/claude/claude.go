@@ -7,18 +7,19 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/dfanso/commit-msg/cmd/cli/store"
 	httpClient "github.com/dfanso/commit-msg/internal/http"
 	"github.com/dfanso/commit-msg/pkg/types"
 )
 
 const (
-	claudeModel        = "claude-3-5-sonnet-20241022"
-	claudeMaxTokens    = 200
-	claudeAPIEndpoint  = "https://api.anthropic.com/v1/messages"
-	claudeAPIVersion   = "2023-06-01"
-	contentTypeJSON    = "application/json"
+	claudeModel            = "claude-3-5-sonnet-20241022"
+	claudeMaxTokens        = 200
+	claudeAPIEndpoint      = "https://api.anthropic.com/v1/messages"
+	claudeAPIVersion       = "2023-06-01"
+	contentTypeJSON        = "application/json"
 	anthropicVersionHeader = "anthropic-version"
-	xAPIKeyHeader      = "x-api-key"
+	xAPIKeyHeader          = "x-api-key"
 )
 
 // ClaudeRequest describes the payload sent to Anthropic's Claude messages API.
@@ -38,10 +39,13 @@ type ClaudeResponse struct {
 	} `json:"content"`
 }
 
+var storeMethods *store.StoreMethods
+
 // GenerateCommitMessage produces a commit summary using Anthropic's Claude API.
 func GenerateCommitMessage(config *types.Config, changes string, apiKey string, opts *types.GenerationOptions) (string, error) {
 
-	prompt := types.BuildCommitPrompt(changes, opts)
+	customTemplate, _ := storeMethods.GetTemplate()
+	prompt := types.BuildCommitPromptWithTemplate(changes, opts, customTemplate)
 
 	reqBody := ClaudeRequest{
 		Model:     claudeModel,

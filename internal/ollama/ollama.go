@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/dfanso/commit-msg/cmd/cli/store"
 	httpClient "github.com/dfanso/commit-msg/internal/http"
 	"github.com/dfanso/commit-msg/pkg/types"
 )
@@ -29,6 +30,8 @@ type OllamaResponse struct {
 	Done     bool   `json:"done"`
 }
 
+var storeMethods *store.StoreMethods
+
 // GenerateCommitMessage uses a locally hosted Ollama model to draft a commit
 // message from repository changes and optional style guidance.
 func GenerateCommitMessage(_ *types.Config, changes string, url string, model string, opts *types.GenerationOptions) (string, error) {
@@ -37,8 +40,11 @@ func GenerateCommitMessage(_ *types.Config, changes string, url string, model st
 		model = ollamaDefaultModel
 	}
 
+	// Checking for the custom template, when building the prompt
+	customTemplate, _ := storeMethods.GetTemplate()
+
 	// Preparing the prompt
-	prompt := types.BuildCommitPrompt(changes, opts)
+	prompt := types.BuildCommitPromptWithTemplate(changes, opts, customTemplate)
 
 	// Generating the request body - add stream: false for non-streaming response
 	reqBody := map[string]interface{}{

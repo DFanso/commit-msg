@@ -7,23 +7,27 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/dfanso/commit-msg/cmd/cli/store"
 	httpClient "github.com/dfanso/commit-msg/internal/http"
 	"github.com/dfanso/commit-msg/pkg/types"
 )
 
 const (
-	grokModel          = "grok-3-mini-fast-beta"
-	grokTemperature    = 0
-	grokAPIEndpoint    = "https://api.x.ai/v1/chat/completions"
-	grokContentType    = "application/json"
+	grokModel           = "grok-3-mini-fast-beta"
+	grokTemperature     = 0
+	grokAPIEndpoint     = "https://api.x.ai/v1/chat/completions"
+	grokContentType     = "application/json"
 	authorizationPrefix = "Bearer "
 )
+
+var storeMethods *store.StoreMethods
 
 // GenerateCommitMessage calls X.AI's Grok API to create a commit message from
 // the provided Git diff and generation options.
 func GenerateCommitMessage(config *types.Config, changes string, apiKey string, opts *types.GenerationOptions) (string, error) {
 	// Prepare request to X.AI (Grok) API
-	prompt := types.BuildCommitPrompt(changes, opts)
+	customTemplate, _ := storeMethods.GetTemplate()
+	prompt := types.BuildCommitPromptWithTemplate(changes, opts, customTemplate)
 
 	request := types.GrokRequest{
 
